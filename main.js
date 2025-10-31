@@ -582,8 +582,8 @@
       const oscGain = ctx.createGain();
       const fadeTime = 0.01;
       oscGain.gain.setValueAtTime(0, t);
-      oscGain.gain.linearRampToValueAtTime(2 * amp, t + fadeTime);
-      oscGain.gain.setValueAtTime(2 * amp, t + d - fadeTime);
+      oscGain.gain.linearRampToValueAtTime(1 * amp, t + fadeTime);
+      oscGain.gain.setValueAtTime(1 * amp, t + d - fadeTime);
       oscGain.gain.linearRampToValueAtTime(0, t + d);
       for (let idx = 0; idx < numFormants; idx++) {
         osc.connect(oscGain).connect(voiceFilters[idx]);
