@@ -582,8 +582,8 @@
       const oscGain = ctx.createGain();
       const fadeTime = 0.01;
       oscGain.gain.setValueAtTime(0, t);
-      oscGain.gain.linearRampToValueAtTime(1 * amp, t + fadeTime);
-      oscGain.gain.setValueAtTime(1 * amp, t + d - fadeTime);
+      oscGain.gain.linearRampToValueAtTime(0.89 * amp, t + fadeTime);
+      oscGain.gain.setValueAtTime(0.89 * amp, t + d - fadeTime);
       oscGain.gain.linearRampToValueAtTime(0, t + d);
       for (let idx = 0; idx < numFormants; idx++) {
         osc.connect(oscGain).connect(voiceFilters[idx]);
@@ -623,7 +623,7 @@
     let currentOsc = null;
     let oscGain = null;
     let lastVoicedEnd = 0;
-    let currentAmp = 1;
+    let currentAmp = 0.9;
 
     // schedule phonemes
     let t = 0;
@@ -649,7 +649,7 @@
           const fadeTime = 0.01;
           const amp = isNaN(p.amp) ? 1 : p.amp;
           oscGain.gain.setValueAtTime(0, t);
-          oscGain.gain.linearRampToValueAtTime(2 * amp, t + fadeTime);
+          oscGain.gain.linearRampToValueAtTime(0.89 * amp, t + fadeTime);
           currentAmp = amp;
           for (let idx = 0; idx < numFormants; idx++) {
             currentOsc.connect(oscGain).connect(voiceFilters[idx]);
@@ -748,7 +748,7 @@
         if (currentOsc) {
           // stop the oscillator with fade-out
           const fadeTime = 0.01;
-          oscGain.gain.setValueAtTime(1 * currentAmp, lastVoicedEnd - fadeTime);
+          oscGain.gain.setValueAtTime(0.89 * currentAmp, lastVoicedEnd - fadeTime);
           oscGain.gain.linearRampToValueAtTime(0, lastVoicedEnd);
           currentOsc.stop(lastVoicedEnd);
           currentOsc = null;
