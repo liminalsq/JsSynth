@@ -466,7 +466,7 @@
 
     // main play routine
     const play = (t, d, f, opt = {}, nextVoiced = null, immediateNext = null) => {
-      const { breathy = false, amp = 1, burst = false, voiced = true, pitch = 220, short = false } = opt;
+      const { breathy = false, amp = 0.9, burst = false, voiced = true, pitch = 220, short = false } = opt;
       if (d <= 0) return;
 
       // If current phoneme is consonant/unvoiced or purely breathy/burst -> produce consonant-filtered noise
@@ -748,7 +748,7 @@
         if (currentOsc) {
           // stop the oscillator with fade-out
           const fadeTime = 0.01;
-          oscGain.gain.setValueAtTime(2 * currentAmp, lastVoicedEnd - fadeTime);
+          oscGain.gain.setValueAtTime(1 * currentAmp, lastVoicedEnd - fadeTime);
           oscGain.gain.linearRampToValueAtTime(0, lastVoicedEnd);
           currentOsc.stop(lastVoicedEnd);
           currentOsc = null;
@@ -767,7 +767,7 @@
     // stop any remaining oscillator
     if (currentOsc) {
       const fadeTime = 0.01;
-      oscGain.gain.setValueAtTime(2 * currentAmp, lastVoicedEnd - fadeTime);
+      oscGain.gain.setValueAtTime(1 * currentAmp, lastVoicedEnd - fadeTime);
       oscGain.gain.linearRampToValueAtTime(0, lastVoicedEnd);
       currentOsc.stop(lastVoicedEnd);
     }
