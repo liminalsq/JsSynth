@@ -90,7 +90,7 @@
     y: { f: [300, 2000, 2800], voiced: true },
     w: { f: [400, 1000, 2200], voiced: true },
     r: { f: [450, 1300, 1700], voiced: true },
-    l: { f: [500, 1400, 2600], voiced: true },
+    l: { f: [400, 900, 2600], voiced: true },
 
     // consonants & sibilants (some flagged voiced/unvoiced)
     h: { f: [800, 1800, 3200], breathy: true, amp: 0.9, voiced: false },
