@@ -7,6 +7,36 @@
   let clonedTimbre = { harmonics: 27, duty: 0.55 }; // default
   const standardFormants = [700, 1220, 2600]; // standard formants for 'a'
 
+  // personal dictionary and dynamic mode
+  let personalDict = {}; // word -> [phoneme1, phoneme2, ...]
+  let dynamicMode = false;
+  let consonantDuration = 0.1;
+
+  // personal dictionary persistence functions
+  function savePersonalDict() {
+    try {
+      localStorage.setItem('personalDict', JSON.stringify(personalDict));
+      console.log('Personal dictionary saved.');
+    } catch (e) {
+      console.warn('Failed to save personal dictionary:', e);
+    }
+  }
+
+  function loadPersonalDict() {
+    try {
+      const stored = localStorage.getItem('personalDict');
+      if (stored) {
+        personalDict = JSON.parse(stored);
+        console.log('Personal dictionary loaded.');
+      }
+    } catch (e) {
+      console.warn('Failed to load personal dictionary:', e);
+    }
+  }
+
+  // load on initialization
+  loadPersonalDict();
+
   // adjust formants for gender and cloning
   const getAdjustedFormants = (baseF) => {
     let f = [...baseF];
@@ -172,6 +202,11 @@
     const w = word.toLowerCase().replace(/[^a-z']/g, "");
     if (w.length === 0) return [];
 
+    // Check personal dictionary first
+    if (personalDict[w]) {
+      return personalDict[w].slice();
+    }
+
     if (useCMUDict) {
       try {
         await loadCMUDict();
@@ -314,7 +349,7 @@
   };
 
   // synthesize with nasal-aware transitions and humanizing features
-  const synthesize = async (ctx, phonemeSeq, mode, vibFreq, vibDepth, vibDelay, morphTime = 0.05, morphEnabled = true, slideTime = 0.08, persistentVib = true) => {
+  const synthesize = async (ctx, phonemeSeq, mode, vibFreq, vibDepth, vibDelay, morphTime = 0.05, morphEnabled = true, slideTime = 0.08, persistentVib = true, dynamicMode = false, consonantDuration = 0.1) => {
     // Preprocess phonemeSeq for humanizing features
     const processedSeq = [];
     for (let i = 0; i < phonemeSeq.length; i++) {
@@ -336,6 +371,16 @@
         prev.d -= silenceDur; // trim s/z
         p.d -= silenceDur; // trim consonant
         // silence is implicit by delaying start
+      }
+
+      // Dynamic mode: set consonant duration and extend next phoneme to preserve total duration
+      if (dynamicMode && !p.voiced && i + 1 < phonemeSeq.length) {
+        const originalD = p.d;
+        if (originalD > consonantDuration) {
+          p.d = consonantDuration;
+          const extend = originalD - consonantDuration;
+          phonemeSeq[i + 1].d += extend;
+        }
       }
 
       processedSeq.push(p);
@@ -813,6 +858,15 @@
       <button id="loadCMU" style="margin-left:8px;padding:4px 8px;">Load CMUDict</button>
     </div>
     <div style="margin-top:6px">
+      <label>Personal Dictionary:</label>
+      <button id="saveDictBtn" style="margin-left:8px;padding:4px 8px;">Save Dict</button>
+      <button id="loadDictBtn" style="margin-left:8px;padding:4px 8px;">Load Dict</button>
+    </div>
+    <div style="margin-top:6px">
+      <label><input type="checkbox" id="dynamicMode"/> Dynamic Mode</label>
+      <label style="margin-left:8px">Consonant Duration: <input type="number" id="consonantDuration" value="0.1" step="0.01" style="width:80px"/></label>
+    </div>
+    <div style="margin-top:6px">
       <label>Gender Shift: <input type="range" id="genderShift" min="-100" max="100" value="0" style="width:200px"/></label>
       <span id="genderValue">0</span>
     </div>
@@ -893,6 +947,30 @@
     } finally { loadCMUBtn.disabled = false; }
   });
 
+  const saveDictBtn = container.querySelector("#saveDictBtn");
+  const loadDictBtn = container.querySelector("#loadDictBtn");
+  saveDictBtn.addEventListener("click", () => {
+    savePersonalDict();
+    statusEl.textContent = "Personal dictionary saved.";
+  });
+  loadDictBtn.addEventListener("click", () => {
+    loadPersonalDict();
+    statusEl.textContent = "Personal dictionary loaded.";
+  });
+
+  // Dynamic mode and consonant duration event listeners
+  const dynamicModeEl = container.querySelector("#dynamicMode");
+  const consonantDurationEl = container.querySelector("#consonantDuration");
+  dynamicModeEl.addEventListener("change", (e) => {
+    dynamicMode = e.target.checked;
+  });
+  consonantDurationEl.addEventListener("input", (e) => {
+    consonantDuration = parseFloat(e.target.value) || 0.1;
+  });
+  // Set initial values
+  dynamicModeEl.checked = dynamicMode;
+  consonantDurationEl.value = consonantDuration;
+
   synthBtn.onclick = async () => {
     outputControls.innerHTML = ""; statusEl.textContent = "Parsing...";
     try {
@@ -917,7 +995,7 @@
       statusEl.textContent = `Rendering ${totalDuration.toFixed(2)}s...`;
       const offlineCtx = new OfflineAudioContext(1, Math.ceil(totalDuration * sampleRate) + 128, sampleRate);
 
-      const renderedBuffer = await synthesize(offlineCtx, phonemeSeq, mode, vibratoFreq, vibratoDepth, vibratoDelay, morphTime, enableMorph, slideTime, persistentVib);
+      const renderedBuffer = await synthesize(offlineCtx, phonemeSeq, mode, vibratoFreq, vibratoDepth, vibratoDelay, morphTime, enableMorph, slideTime, persistentVib, dynamicMode, consonantDuration);
       statusEl.textContent = "Done";
 
       // WAV creation & preview
