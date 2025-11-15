@@ -133,7 +133,7 @@
     // nasals: flagged nasal: true
     n: { f: [300, 1300, 2500], voiced: true, nasal: true },
     m: { f: [250, 1100, 2100], voiced: true, nasal: true },
-    b: { f: [355, 996, 2111], breathy: true, burst: true, voiced: true, short: true },
+    b: { f: [355, 1150, 2100], breathy: true, burst: true, voiced: true, short: true },
     p: { f: [1000, 1800, 2700], burst: true, short: true, voiced: false },
     f: { f: [1200, 3000, 5000], breathy: true, voiced: false },
     v: { f: [1200, 2800, 4800], breathy: true, voiced: true },
