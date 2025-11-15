@@ -790,23 +790,16 @@
 
       } else {
         // non-voiced or whisper
-        const prev = i > 0 ? processedSeq[i - 1] : null;
-        const hasPrevVoiced = prev && prev.voiced;
         if (currentOsc) {
-          if (hasPrevVoiced && !p.voiced) {
-            // fade oscillator to muffled level over the phoneme duration
-            oscGain.gain.setValueAtTime(oscGain.gain.value, t);
-            oscGain.gain.linearRampToValueAtTime(0.1, t + p.d);
-          } else {
-            // stop the oscillator with fade-out
-            const fadeTime = 0.01;
-            oscGain.gain.setValueAtTime(0.89 * currentAmp, lastVoicedEnd - fadeTime);
-            oscGain.gain.linearRampToValueAtTime(0, lastVoicedEnd);
-            currentOsc.stop(lastVoicedEnd);
-            currentOsc = null;
-            oscGain = null;
-          }
+          // stop the oscillator with fade-out
+          const fadeTime = 0.01;
+          oscGain.gain.setValueAtTime(0.89 * currentAmp, lastVoicedEnd - fadeTime);
+          oscGain.gain.linearRampToValueAtTime(0, lastVoicedEnd);
+          currentOsc.stop(lastVoicedEnd);
+          currentOsc = null;
+          oscGain = null;
         }
+
         // play consonant noise
         if (!p.voiced || mode === "whisper") {
           playConsonantNoise(t, p.d, p.f, p.amp);
