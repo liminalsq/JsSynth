@@ -133,7 +133,7 @@
     // nasals: flagged nasal: true
     n: { f: [300, 1300, 2500], voiced: true, nasal: true },
     m: { f: [250, 1100, 2100], voiced: true, nasal: true },
-    b: { f: [800, 1500, 2400], burst: true, voiced: false, short: true },
+    b: { f: [800, 1500, 2400], breathy: true, burst: true, voiced: true, short: true },
     p: { f: [1000, 1800, 2700], burst: true, short: true, voiced: false },
     f: { f: [1200, 3000, 5000], breathy: true, voiced: false },
     v: { f: [1200, 2800, 4800], breathy: true, voiced: true },
@@ -790,16 +790,23 @@
 
       } else {
         // non-voiced or whisper
+        const prev = i > 0 ? processedSeq[i - 1] : null;
+        const hasPrevVoiced = prev && prev.voiced;
         if (currentOsc) {
-          // stop the oscillator with fade-out
-          const fadeTime = 0.01;
-          oscGain.gain.setValueAtTime(0.89 * currentAmp, lastVoicedEnd - fadeTime);
-          oscGain.gain.linearRampToValueAtTime(0, lastVoicedEnd);
-          currentOsc.stop(lastVoicedEnd);
-          currentOsc = null;
-          oscGain = null;
+          if (hasPrevVoiced && !p.voiced) {
+            // fade oscillator to muffled level over the phoneme duration
+            oscGain.gain.setValueAtTime(oscGain.gain.value, t);
+            oscGain.gain.linearRampToValueAtTime(0.1, t + p.d);
+          } else {
+            // stop the oscillator with fade-out
+            const fadeTime = 0.01;
+            oscGain.gain.setValueAtTime(0.89 * currentAmp, lastVoicedEnd - fadeTime);
+            oscGain.gain.linearRampToValueAtTime(0, lastVoicedEnd);
+            currentOsc.stop(lastVoicedEnd);
+            currentOsc = null;
+            oscGain = null;
+          }
         }
-
         // play consonant noise
         if (!p.voiced || mode === "whisper") {
           playConsonantNoise(t, p.d, p.f, p.amp);
