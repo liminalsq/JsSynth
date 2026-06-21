@@ -878,6 +878,12 @@
       <button id="synthBtn" style="padding:6px 12px">ðŸŽ¤ Synthesize</button>
       <span id="status" style="margin-left:10px;font-size:12px;color:#444"></span>
     </div>
+    <div style="margin-top:10px; padding-top:8px; border-top:1px dashed #ddd;">
+      <div style="font-size:12px; margin-bottom:6px">MIDI Import</div>
+      <label>Midi file: <input type="file" id="midiFile" accept=".mid,.midi,audio/midi,application/octet-stream"/></label>
+      <button id="importMidiBtn" style="margin-left:8px; padding:4px 10px;">Import MIDI</button>
+      <div style="font-size:12px; margin-top:6px; color:#444">Notes map to phoneme <b>a</b>. Gaps map to <b>rest</b>.</div>
+    </div>
     <div id="outputControls" style="margin-top:8px"></div>
   `;
   document.body.appendChild(container);
@@ -970,6 +976,207 @@
   // Set initial values
   dynamicModeEl.checked = dynamicMode;
   consonantDurationEl.value = consonantDuration;
+
+  // --- MIDI Import ---
+  const midiFileEl = container.querySelector("#midiFile");
+  const importMidiBtn = container.querySelector("#importMidiBtn");
+
+  const parseVarLen = (buf, idxObj) => {
+    // Standard MIDI variable-length quantity
+    let value = 0;
+    while (true) {
+      const b = buf[idxObj.i++];
+      value = (value << 7) | (b & 0x7f);
+      if ((b & 0x80) === 0) break;
+    }
+    return value;
+  };
+
+  const midiNoteNumberToName = (noteNumber) => {
+    const names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+    const n = Math.max(0, Math.min(127, noteNumber|0));
+    const octave = Math.floor(n / 12) - 1;
+    const name = names[n % 12];
+    return `${name}${octave}`;
+  };
+
+  const midiDurationUnitsToToken = (seconds, gridType, beatLen, stepsPerBeat) => {
+    if (gridType === "seconds") return seconds;
+    if (gridType === "beats") return seconds / beatLen;
+    if (gridType === "steps") return (seconds / beatLen) * stepsPerBeat;
+    return seconds / beatLen;
+  };
+
+  const buildPhonemeTextFromMidi = (midiBytes, gridType, bpm, stepsPerBeat) => {
+    // Minimal MIDI parser for format 0/1: extracts note-on/off with delta-time scheduling.
+    const buf = midiBytes;
+    let idx = 0;
+    const readU32 = () => (buf[idx++]<<24) | (buf[idx++]<<16) | (buf[idx++]<<8) | (buf[idx++]);
+    const readU16 = () => (buf[idx++]<<8) | (buf[idx++]);
+
+    const headerId = String.fromCharCode(buf[idx], buf[idx+1], buf[idx+2], buf[idx+3]);
+    if (headerId !== "MThd") throw new Error("Not a valid MIDI file (missing MThd)");
+    idx += 4;
+    const headerLen = readU32();
+    const format = readU16();
+    const nTracks = readU16();
+    const division = readU16();
+    if ((division & 0x8000) !== 0) throw new Error("SMPTE timing MIDI not supported");
+    const ticksPerQuarter = division;
+    idx = 8 + headerLen; // after header chunk
+
+    // active notes: noteNumber -> {startTick}
+    const quarterSec = 60 / bpm;
+    const secPerTick = quarterSec / ticksPerQuarter;
+
+    // Collect note intervals across tracks (best-effort: unify by real-time)
+    // We'll store in real seconds for each interval.
+    const noteIntervals = []; // {noteNumber, startSec, endSec}
+
+    // Parse tracks (inline MIDI varlen decoding)
+    idx = 8 + headerLen;
+    for (let t = 0; t < nTracks; t++) {
+      const trId = String.fromCharCode(buf[idx], buf[idx+1], buf[idx+2], buf[idx+3]);
+      if (trId !== "MTrk") throw new Error("Invalid MIDI track chunk");
+      idx += 4;
+      const trLen = readU32();
+      const trEnd = idx + trLen;
+
+      let tick = 0;
+      const active = new Map(); // noteNumber -> startTick
+
+      while (idx < trEnd) {
+        // delta-time (VLQ)
+        let value = 0;
+        while (true) {
+          const b = buf[idx++];
+          value = (value << 7) | (b & 0x7f);
+          if ((b & 0x80) === 0) break;
+        }
+        tick += value;
+
+        const status = buf[idx++];
+
+        if (status === 0xff) {
+          // meta event
+          idx++; // type
+          let len = 0;
+          while (true) {
+            const b = buf[idx++];
+            len = (len << 7) | (b & 0x7f);
+            if ((b & 0x80) === 0) break;
+          }
+          idx += len;
+          continue;
+        }
+
+        const op = status & 0xf0;
+        if (op === 0x90 || op === 0x80) {
+          const noteNumber = buf[idx++];
+          const vel = buf[idx++];
+
+          if (op === 0x90 && vel > 0) {
+            active.set(noteNumber, tick);
+          } else {
+            const startTick = active.get(noteNumber);
+            if (startTick != null) {
+              const startSec = startTick * secPerTick;
+              const endSec = tick * secPerTick;
+              if (endSec > startSec) noteIntervals.push({ noteNumber, startSec, endSec });
+              active.delete(noteNumber);
+            }
+          }
+        } else {
+          // channel events: skip parameter bytes
+          if ((status & 0xf0) === 0xc0 || (status & 0xf0) === 0xd0) {
+            idx += 1;
+          } else {
+            idx += 2;
+          }
+        }
+      }
+    }
+
+
+    // Build timeline by sorting interval endpoints. We'll treat polyphony by choosing a single note (highest note) during overlaps.
+    // This keeps output simple and deterministic.
+    noteIntervals.sort((a,b) => a.startSec - b.startSec || a.endSec - b.endSec);
+
+    const points = [];
+    for (const ni of noteIntervals) {
+      points.push({ time: ni.startSec, type: "on", noteNumber: ni.noteNumber });
+      points.push({ time: ni.endSec, type: "off", noteNumber: ni.noteNumber });
+    }
+    points.sort((a,b) => a.time - b.time || (a.type === "off" ? -1 : 1));
+
+    const active = new Set();
+    const timeline = []; // { startSec, endSec, noteNumberOrNull }
+
+    let lastTime = points.length ? points[0].time : 0;
+    for (let i = 0; i < points.length; i++) {
+      const p = points[i];
+      const curTime = p.time;
+      if (curTime > lastTime) {
+        const noteNumber = active.size ? Math.max(...active) : null;
+        timeline.push({ startSec: lastTime, endSec: curTime, noteNumber });
+      }
+      if (p.type === "on") active.add(p.noteNumber);
+      else active.delete(p.noteNumber);
+      lastTime = curTime;
+    }
+
+    // Convert timeline to tokens.
+    const tokens = [];
+    const restPitch = "C4";
+
+    const fmtDur = (x) => {
+      // keep readable but not too long
+      const s = (Math.round(x * 1000) / 1000);
+      return (Number.isFinite(s) ? s : 0).toString();
+    };
+
+    for (const seg of timeline) {
+      const durSec = seg.endSec - seg.startSec;
+      if (durSec <= 0) continue;
+      if (seg.noteNumber == null) {
+        const durToken = midiDurationUnitsToToken(durSec, gridType, 60 / bpm, stepsPerBeat);
+        tokens.push(`rest <${restPitch},${fmtDur(durToken)}> `);
+      } else {
+
+        const noteName = midiNoteNumberToName(seg.noteNumber);
+        const durToken = midiDurationUnitsToToken(durSec, gridType, 60 / bpm, stepsPerBeat);
+        // phoneme is always 'a'
+        tokens.push(`a <${noteName},${fmtDur(durToken)}>`);
+      }
+    }
+
+    // Ensure spaces between phonemes/tokens
+    return tokens.join(" ");
+  };
+
+  importMidiBtn.onclick = async () => {
+    outputControls.innerHTML = "";
+    statusEl.textContent = "Importing MIDI...";
+    try {
+      const file = midiFileEl.files && midiFileEl.files[0];
+      if (!file) { statusEl.textContent = "Select a MIDI file first."; return; }
+
+      const gridType = container.querySelector("#gridType").value || "beats";
+      const bpm = parseFloat(container.querySelector("#bpm").value) || 120;
+      const stepsPerBeat = Math.max(1, parseInt(container.querySelector("#stepsPerBeat").value) || 4);
+      const beatLen = 60 / bpm;
+
+      const ab = await file.arrayBuffer();
+      const bytes = new Uint8Array(ab);
+
+      const text = buildPhonemeTextFromMidi(bytes, gridType, bpm, stepsPerBeat);
+      container.querySelector("#phonemeInput").value = text;
+      statusEl.textContent = "MIDI imported. Ready to synthesize.";
+    } catch (err) {
+      console.error(err);
+      statusEl.textContent = "MIDI import failed: " + (err.message || err);
+    }
+  };
 
   synthBtn.onclick = async () => {
     outputControls.innerHTML = ""; statusEl.textContent = "Parsing...";
