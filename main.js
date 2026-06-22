@@ -545,10 +545,14 @@
             voiceGains[idx].gain.cancelScheduledValues(t);
             voiceGains[idx].gain.setValueAtTime(1, t);
             // dip to e.g. 0.65 during morph window, then back to 1
-            voiceGains[idx].gain.setValueAtTime(1, morphStart - 0.001);
-            voiceGains[idx].gain.linearRampToValueAtTime(0.65, morphStart + Math.min(0.02, morphTime * 0.5));
-            voiceGains[idx].gain.setValueAtTime(0.65, morphEnd - Math.min(0.02, morphTime * 0.5));
-            voiceGains[idx].gain.linearRampToValueAtTime(1, morphEnd + 0.01);
+            const tSetStart = Math.max(t, morphStart - 0.001);
+            const tRampEnd = Math.min(morphEnd, morphStart + Math.min(0.02, morphTime * 0.5));
+            const tDipEnd = Math.max(tSetStart, morphEnd - Math.min(0.02, morphTime * 0.5));
+            const tSetEnd = Math.max(tDipEnd, morphEnd + 0.01);
+            voiceGains[idx].gain.setValueAtTime(1, tSetStart);
+            voiceGains[idx].gain.linearRampToValueAtTime(0.65, tRampEnd);
+            voiceGains[idx].gain.setValueAtTime(0.65, tDipEnd);
+            voiceGains[idx].gain.linearRampToValueAtTime(1, tSetEnd);
           } catch (e) {}
         }
         // schedule nasal burst (filtered noise) in morph window to add "nah"/nasal timbre
