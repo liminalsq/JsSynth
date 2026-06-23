@@ -885,7 +885,11 @@
     <div style="margin-top:10px; padding-top:8px; border-top:1px dashed #ddd;">
       <div style="font-size:12px; margin-bottom:6px">MIDI Import</div>
       <label>Midi file: <input type="file" id="midiFile" accept=".mid,.midi,audio/midi,application/octet-stream"/></label>
-      <button id="importMidiBtn" style="margin-left:8px; padding:4px 10px;">Import MIDI</button>
+      <label style="display:block;margin-top:6px;font-size:12px;color:#333;">Custom file name:<br/>
+        <input type="text" id="customFileName" placeholder="singer" style="width:140px;font-family:monospace"/>
+      </label>
+
+      <button id="importMidiBtn" style="margin-left:0; margin-top:6px; padding:4px 10px;">Import MIDI</button>
       <label style="margin-left:8px; font-size:12px; color:#333; display:inline-flex; align-items:center; gap:6px;">
         <input type="checkbox" id="midiReplacePitches" />
         Replace pitches only (keep existing phonemes)
@@ -1207,13 +1211,17 @@
       for (const tok of existingTokens) {
         const p = parseToken(tok);
         if (!p) continue;
-        if (midiIdx >= midiParsed.length) {
+
+        const mp = midiParsed[midiIdx];
+        // If we ran out of MIDI tokens, keep remaining original tokens.
+        if (!mp) {
           outTokens.push(tok);
           continue;
         }
-        const mp = midiParsed[midiIdx++];
-        // keep existing phoneme key, replace pitch+dur
+
+        // Only replace pitches/durations for tokens that actually look like phoneme+pitch.
         outTokens.push(`${p.key} <${mp.pitch},${mp.dur}>`);
+        midiIdx++;
       }
 
       phonemeInputEl.value = outTokens.join(" ");
@@ -1278,9 +1286,13 @@
       const blob = new Blob([view], { type: "audio/wav" });
       const url = URL.createObjectURL(blob);
       const dl = document.createElement("a");
-      dl.href = url; dl.download = `singer-${Date.now()}.wav`; dl.textContent = "Download WAV";
+      const customNameEl = container.querySelector("#customFileName");
+      const rawName = (customNameEl && customNameEl.value != null ? String(customNameEl.value) : "").trim();
+      const safeName = rawName ? rawName.replace(/[^a-zA-Z0-9._-]/g, "_") : `singer-${Date.now()}`;
+      dl.href = url; dl.download = `${safeName}-${Date.now()}.wav`; dl.textContent = "Download WAV";
       dl.style = "display:inline-block;margin-right:8px;margin-top:8px;";
       outputControls.appendChild(dl);
+
 
       const playBtn = document.createElement("button");
       playBtn.textContent = "â–¶ Preview"; playBtn.style = "margin-top:8px;padding:6px 12px;";
