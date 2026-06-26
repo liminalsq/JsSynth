@@ -834,7 +834,7 @@
     <h3 style="margin:0 0 8px 0">HOSTERS FR SYNTHESIZER</h3>
     <div style="font-size:12px;margin-bottom:8px">HOSTERS VERY HUMAN SYNTHESIZER</div>
     <label style="display:block">Melody / Text:<br/>
-      <textarea id="phonemeInput" rows="4" style="width:100%;font-family:monospace;">a <C4,0.4> n <C4,0.2> a <C4,0.4></textarea>
+      <textarea id="phonemeInput" rows="4" style="width:100%;font-family:monospace;">d<c2,0.1> o<c2,0.9> r<d2,0.1> e<d2,0.9> m<e2,0.1> i<e2,0.9> f<f2,0.1> a<f2,0.9> s<g2,0.1> o<g2,0.9> l<a2,0.1> a<a2,0.9> t<b2,0.1> i<b2,0.9> d<c3,0.1> o<c3,0.9></textarea>
     </label>
     <div style="margin-top:6px">
       <label>Voice mode:
